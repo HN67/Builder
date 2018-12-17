@@ -8,7 +8,7 @@ import Config as config
 class Tile(pygame.sprite.Sprite):
     """Tile Sprite Class"""
 
-    def __init__(self, size, image = "blank"):
+    def __init__(self, size, image = "null"):
         """Creates an unlogiced tile (with image)"""
 
         # Call parent constructor
@@ -41,6 +41,12 @@ class Tile(pygame.sprite.Sprite):
                 3: ForestTile, "forest": ForestTile}
 
         return refs[var](size)
+
+    # Draws tile onto a surface
+    def draw(self, surface):
+        """Draw on to target surface"""
+        
+        surface.blit(self.image, self.rect)
 
 class FieldTile(Tile):
 

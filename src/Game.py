@@ -46,7 +46,6 @@ class Pair:
         self.x = x
         self.y = y
 
-
 # Base class for game panels
 class Panel:
 
@@ -65,7 +64,7 @@ class Panel:
 
     # Define how to redraw the panel (likely to be overridden)
     def update(self):
-        """Update the graphical representation of the map"""
+        """Update the graphical representation of the panel"""
 
         # Fill black background
         self.image.fill(config.color.black)
@@ -83,14 +82,64 @@ class Panel:
 
         
 
+# Class for an Icon widget
+class Icon(Panel):
+
+    def __init__(self, rect, image, border = 0, bc = (0,0,0),  outer = False):
+        """Image would be a pygame.Surface
+           Border is border width in pixels
+           If outer is True, the border is drawn around the image,
+           expanding the rect, otherwise it is drawn atop the image"""
+
+        # Check if border is in or out
+        if outer:
+            rect.width += border
+            rect.height += border
+        
+        # Call parent constructor
+        super().__init__(rect)
+
+        # Save border for use in update method
+        self.border = border
+
+        # Save image (as pic to not conflict with top surface image)
+        self.pic = image
+
+        # Save outer bool for use in update method, but privately
+        # since it cannot be hot changed
+        self._outer = outer
+
+        # Save border color
+        self.bc = bc
+
+    # Update method
+    def update(self):
+
+        # Clear image
+        self.image.fill(config.color.black)
+
+        # Check if border is outside to determine whether to shift pic or not
+        if self._outer:
+
+            self.image.blit(self.pic, (self.border, self.border))
+
+        else:
+
+            self.image.blit(self.pic, (0, 0))
+
+        # Draw border
+        pygame.draw.rect(self.image, self.bc,
+                         self.rect, self.border)
+        
+
 # Set class that holds a top-level sprite and keeps track of tiles
 class Map(Panel):
 
-    def __init__(self, pos, size, scale, rand = True):
+    def __init__(self, origin, size, scale, rand = True):
         """Creates a map of tiles using"""
 
         # Call parent constructor
-        super().__init__(pygame.Rect(pos, (size * scale, size * scale)))
+        super().__init__(pygame.Rect(origin, (size * scale, size * scale)))
 
         # Create tile group
         self.tileGroup = pygame.sprite.Group()
@@ -137,6 +186,56 @@ class Map(Panel):
                 return tile
 
 
+# Class for a control interface
+# (either dynamic or designed for this project, havent decided)
+# Probably specifically designed for interfacing with tiles
+class Interface(Panel):
+
+    def __init__(self, origin, width, height):
+        
+        # Call parent constructor
+        super().__init__(pygame.Rect(origin, (width, height)))
+
+        # Create config object
+        self.cfg = config.interface()
+        
+        # Create blank tile
+        self.tile = Tile(config.game.tileSize)
+
+        # Create tile icon
+        # Create starting rect with tile size
+        iconRect = pygame.Rect((0, 0),
+                               (self.tile.rect.width, self.tile.rect.height))
+        
+        # Create tileIcon using rect
+        self.tileIcon = Icon(iconRect, self.tile.image, border = self.cfg.imgBorder,
+                             bc = config.color.brown, outer = True)
+
+        # Center tileIcon rect
+        self.tileIcon.rect.center = (self.rect.width*self.cfg.imgXRatio,
+                                     self.rect.height*self.cfg.imgYRatio)
+
+
+
+    def update(self):
+        """Update the graphics of the interface to prepare for drawing"""
+
+        # Fill grey background
+        self.image.fill(config.color.lightGrey)
+
+        # Draw border
+        pygame.draw.rect(self.image, config.color.black,
+                         pygame.Rect(0, 0, self.rect.width, self.rect.height),
+                         10)
+
+        # Draw tile icon
+        # Pass self tile image to tileIcon so it updates
+        self.tileIcon.image = self.tile.image
+        # Draw tileIcon onto self image (Main panel)
+        self.tileIcon.draw(self.image)
+
+    
+
 ## Define Game class
 class Game:
 
@@ -167,7 +266,7 @@ class Game:
         #self.map = pygame.Surface((config.game.mapSize, config.game.height))
         self.map = None
 
-        self.interface = pygame.Surface((config.game.interfaceWidth, config.game.height))
+        self.interface = None
         
         # Do game-related less technical stuff
         self.reset()
@@ -178,15 +277,21 @@ class Game:
     def reset(self):
         """Restarts the game"""
 
-        #Clear sprite groups
-        #self.tileGroup.empty()
+        # Clear sprite groups
         self.allGroup.empty()
 
+        # Create map based on config
         self.map = Map((0,0),
                        config.game.mapSize // config.game.tileSize,
                        config.game.tileSize, rand = True)
+        
+        # Create interface
+        self.interface = Interface((config.game.mapSize, 0),
+                                   config.game.interfaceWidth, config.game.mapSize)
 
-
+        # Create tile selector
+        self.selectedTile = Tile(config.game.tileSize)
+        
 
     # Main loop
     def loop(self):
@@ -224,37 +329,23 @@ class Game:
                             # Output tile type
                             dprint(self.selectedTile.type)
 
-                            # Test of changing tile image
-                            self.selectedTile.image = pygame.transform.scale(
-                                        pygame.image.load("resources/blank.png"),
-                                              (30,30))
+                            # Give the selected tile to the Interface
+                            self.interface.tile = self.selectedTile
+                            
                     
                 # Print out the event
                 dprint(event)
 
-            ## Test of moving the tile with the mouse
-                """
-            mousePos = pygame.mouse.get_pos()
-            self.tile.rect.x = mousePos[0]
-            self.tile.rect.y = mousePos[1]
-            """
-
 
             # Redraw the graphics
+            # Root background color
             self.display.fill(config.color.black)
 
-            #self.map.fill(config.color.black)
-            #self.allGroup.draw(self.map)
-
-            #self.map.update()
-
-            self.interface.fill(config.color.grey)
-
-            #self.display.blit(self.map, (0, 0))
+            # Draw the map and interface
             self.map.draw(self.display)
-            self.display.blit(self.interface, (config.game.mapSize, 0))
+            self.interface.draw(self.display)
             
-            # Flip screen
+            # Flip the display
             pygame.display.update()
 
             # Try and run at a certain FPS
